@@ -11,14 +11,15 @@ export interface RedditVideo {
 }
 
 const CATEGORY_MAP: Record<string, string[]> = {
-  'Hot': [
+  '18+': [
     'RealGirls', 'holdmycosmo', 'BikiniBodies', 'TightDress', 'YogaPants', 
     'FitGirls', 'BeautifulFemales', 'HighHeels', 'Stockings', 'Legs', 
     'CelebrityNSFW', 'NSFW_GIFS', 'WildStar', 'Amateur', 'Selfie',
     'gonewild', 'AsiansGoneWild', 'palegirls', 'CollegeAmateurs',
     'FestivalSluts', 'WorkGoneWild', 'PetiteGoneWild', 'TallGoneWild',
     'Curvy', 'Thick', 'Slim', 'Fit', 'Athletic', 'GirlsInTightPants',
-    'HighResNSFW', 'GfycatDepot', 'NSFW_HTML5', '60fpsporn', 'HighQualityNSFW'
+    'HighResNSFW', 'GfycatDepot', 'NSFW_HTML5', '60fpsporn', 'HighQualityNSFW',
+    'NSFW_Snapchat', 'BonerMaterial', 'OnOff', 'BurstingOut', 'TittyDrop'
   ],
   'Viral': [
     'TikTokCringe', 'Unexpected', 'nextfuckinglevel', 'BeAmazed', 'MayBeMaybeMaybe',

@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Play, Pause } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RedditVideo } from '../services/redditService';
 import { SkeletonLoader } from './SkeletonLoader';
+import * as dashjs from 'dashjs';
 
 interface VideoCardProps {
   video: RedditVideo;
@@ -14,10 +15,12 @@ interface VideoCardProps {
 
 export const VideoCard: React.FC<VideoCardProps> = ({ video, isActive, shouldLoad, isGlobalMuted, onMuteToggle }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<dashjs.MediaPlayerClass | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isLocalMuted, setIsLocalMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [hasAudioError, setHasAudioError] = useState(false);
 
   // Haptic feedback helper
   const triggerHaptic = (type: 'light' | 'medium' = 'light') => {
@@ -31,7 +34,35 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, isActive, shouldLoa
     setIsLocalMuted(isGlobalMuted);
   }, [isGlobalMuted]);
 
+  // Initialize DASH player for Reddit videos
   useEffect(() => {
+    if (isActive && shouldLoad && videoRef.current && video.url.includes('v.redd.it')) {
+      const mpdUrl = video.url.split('/DASH_')[0] + '/DASHPlaylist.mpd';
+      
+      if (!playerRef.current) {
+        playerRef.current = dashjs.MediaPlayer().create();
+        playerRef.current.initialize(videoRef.current, mpdUrl, true);
+        playerRef.current.setMute(isLocalMuted);
+        
+        playerRef.current.on(dashjs.MediaPlayer.events.ERROR, (e) => {
+          console.error('DASH Player Error:', e);
+          setHasAudioError(true);
+        });
+      }
+    }
+
+    return () => {
+      if (playerRef.current) {
+        playerRef.current.destroy();
+        playerRef.current = null;
+      }
+    };
+  }, [isActive, shouldLoad, video.url]);
+
+  useEffect(() => {
+    if (playerRef.current) {
+      playerRef.current.setMute(isLocalMuted);
+    }
     if (videoRef.current) {
       videoRef.current.muted = isLocalMuted;
     }
@@ -41,15 +72,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, isActive, shouldLoa
     if (videoRef.current && shouldLoad) {
       if (isActive) {
         if (isPlaying) {
-          // Use a promise to handle play() and catch errors for weak networks
           const playPromise = videoRef.current.play();
           if (playPromise !== undefined) {
-            playPromise.catch(e => {
-              console.log("Playback failed, retrying...", e);
-              // If playback fails, it might be a network issue or autoplay policy
+            playPromise.catch(() => {
               if (videoRef.current) {
                 videoRef.current.muted = true;
-                videoRef.current.play().catch(err => console.log("Retry failed", err));
+                setIsLocalMuted(true);
+                videoRef.current.play().catch(() => {});
               }
             });
           }
@@ -70,7 +99,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, isActive, shouldLoa
   };
 
   const handleVideoClick = () => {
-    togglePlay();
+    if (isLocalMuted) {
+      triggerHaptic('medium');
+      setIsLocalMuted(false);
+      onMuteToggle(false);
+    } else {
+      togglePlay();
+    }
   };
 
   const handleTimeUpdate = () => {
@@ -132,7 +167,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, isActive, shouldLoa
       {/* Volume/Play Indicator (Feedback on click) */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
         <AnimatePresence mode="wait">
-          {!isPlaying && (
+          {!isPlaying ? (
             <motion.div
               key="paused"
               initial={{ opacity: 0, scale: 0.5 }}
@@ -142,7 +177,18 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, isActive, shouldLoa
             >
               <Play className="w-12 h-12 text-white fill-white" />
             </motion.div>
-          )}
+          ) : isLocalMuted ? (
+            <motion.div
+              key="muted"
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5 }}
+              className="bg-black/40 p-4 rounded-full flex flex-col items-center gap-2"
+            >
+              <VolumeX className="w-8 h-8 text-white" />
+              <span className="text-white text-[10px] font-bold">TAP TO UNMUTE</span>
+            </motion.div>
+          ) : null}
         </AnimatePresence>
       </div>
     </div>

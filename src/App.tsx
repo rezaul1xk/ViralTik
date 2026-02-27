@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { RedditService, RedditVideo } from './services/redditService';
 import { VideoCard } from './components/VideoCard';
 import { SkeletonLoader } from './components/SkeletonLoader';
-import { Flame, Zap } from 'lucide-react';
+import { Heart, Zap, Venus } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const redditService = new RedditService();
@@ -118,11 +118,11 @@ export default function App() {
             onClick={() => handleCategoryChange('Viral')}
           />
           <CategoryButton 
-            icon={<Flame />} 
-            label="Hot" 
-            color="text-orange-500" 
-            isActive={currentCategory === 'Hot'}
-            onClick={() => handleCategoryChange('Hot')}
+            icon={<Venus />} 
+            label="18+" 
+            color="text-pink-500" 
+            isActive={currentCategory === '18+'}
+            onClick={() => handleCategoryChange('18+')}
           />
         </div>
       </div>
