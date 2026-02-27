@@ -1,0 +1,5 @@
+{
+  "name": "ViralTok - Reddit Video Feed",
+  "description": "A TikTok-style vertical video feed powered by viral content from Reddit subreddits.",
+  "requestFramePermissions": []
+}
