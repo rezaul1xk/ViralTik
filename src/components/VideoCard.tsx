@@ -3,7 +3,6 @@ import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RedditVideo } from '../services/redditService';
 import { SkeletonLoader } from './SkeletonLoader';
-import * as dashjs from 'dashjs';
 
 interface VideoCardProps {
   video: RedditVideo;
@@ -11,16 +10,18 @@ interface VideoCardProps {
   shouldLoad: boolean;
   isGlobalMuted: boolean;
   onMuteToggle: (muted: boolean) => void;
+  onAutoSkip?: () => void;
+  onEnded?: () => void;
+  loop?: boolean;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, isActive, shouldLoad, isGlobalMuted, onMuteToggle }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, isActive, shouldLoad, isGlobalMuted, onMuteToggle, onAutoSkip, onEnded, loop = true }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const playerRef = useRef<dashjs.MediaPlayerClass | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isLocalMuted, setIsLocalMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [progress, setProgress] = useState(0);
-  const [hasAudioError, setHasAudioError] = useState(false);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Haptic feedback helper
   const triggerHaptic = (type: 'light' | 'medium' = 'light') => {
@@ -34,39 +35,26 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, isActive, shouldLoa
     setIsLocalMuted(isGlobalMuted);
   }, [isGlobalMuted]);
 
-  // Initialize DASH player for Reddit videos
+  // Auto-skip logic for slow loading
   useEffect(() => {
-    if (isActive && shouldLoad && videoRef.current && video.url.includes('v.redd.it')) {
-      const mpdUrl = video.url.split('/DASH_')[0] + '/DASHPlaylist.mpd';
+    if (isActive && !isLoaded && shouldLoad) {
+      // Clear any existing timeout
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       
-      if (!playerRef.current) {
-        playerRef.current = dashjs.MediaPlayer().create();
-        playerRef.current.initialize(videoRef.current, mpdUrl, true);
-        playerRef.current.setMute(isLocalMuted);
-        
-        playerRef.current.on(dashjs.MediaPlayer.events.ERROR, (e) => {
-          console.error('DASH Player Error:', e);
-          setHasAudioError(true);
-        });
-      }
+      // Set a 7-second timeout to skip if not loaded
+      loadingTimeoutRef.current = setTimeout(() => {
+        if (!isLoaded && isActive && onAutoSkip) {
+          console.warn(`Video ${video.id} taking too long to load, skipping...`);
+          onAutoSkip();
+        }
+      }, 7000);
     }
 
     return () => {
-      if (playerRef.current) {
-        playerRef.current.destroy();
-        playerRef.current = null;
-      }
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
     };
-  }, [isActive, shouldLoad, video.url]);
+  }, [isActive, isLoaded, shouldLoad, onAutoSkip, video.id]);
 
-  useEffect(() => {
-    if (playerRef.current) {
-      playerRef.current.setMute(isLocalMuted);
-    }
-    if (videoRef.current) {
-      videoRef.current.muted = isLocalMuted;
-    }
-  }, [isLocalMuted]);
 
   useEffect(() => {
     if (videoRef.current && shouldLoad) {
@@ -116,22 +104,45 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, isActive, shouldLoa
   };
 
   return (
-    <div className="relative h-screen w-full snap-start snap-always bg-black flex items-center justify-center overflow-hidden">
+    <motion.div 
+      initial={false}
+      animate={{ 
+        scale: isActive ? 1 : 0.95,
+        opacity: isActive ? 1 : 0.4,
+        filter: isActive ? 'blur(0px)' : 'blur(10px)',
+        rotateX: isActive ? 0 : 2,
+        y: isActive ? 0 : (isActive ? -10 : 10)
+      }}
+      transition={{ 
+        duration: 0.5, 
+        ease: [0.22, 1, 0.36, 1]
+      }}
+      className="relative h-screen w-full bg-black flex items-center justify-center overflow-hidden"
+    >
       {/* Video Element */}
       {shouldLoad ? (
         <video
           ref={videoRef}
-          src={video.url}
-          poster={video.thumbnail}
+          src={`/api/proxy-asset?url=${encodeURIComponent(video.url)}`}
+          poster={video.thumbnail ? `/api/proxy-asset?url=${encodeURIComponent(video.thumbnail)}` : undefined}
           className="h-full w-full object-cover cursor-pointer"
-          loop
+          loop={loop}
           playsInline
           preload="auto"
           muted={isLocalMuted}
           onLoadedData={() => setIsLoaded(true)}
           onCanPlay={() => setIsLoaded(true)}
           onTimeUpdate={handleTimeUpdate}
+          onEnded={onEnded}
           onClick={handleVideoClick}
+          onError={(e) => {
+            console.error('Video element error:', e);
+            // If it failed and wasn't already using the proxy, try the proxy
+            if (videoRef.current && !videoRef.current.src.includes('/api/proxy-asset')) {
+              videoRef.current.src = `/api/proxy-asset?url=${encodeURIComponent(video.url)}`;
+              videoRef.current.load();
+            }
+          }}
         />
       ) : (
         <div className="h-full w-full bg-black">
@@ -186,11 +197,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, isActive, shouldLoa
               className="bg-black/40 p-4 rounded-full flex flex-col items-center gap-2"
             >
               <VolumeX className="w-8 h-8 text-white" />
-              <span className="text-white text-[10px] font-bold">TAP TO UNMUTE</span>
             </motion.div>
           ) : null}
         </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   );
 };
